@@ -1,0 +1,105 @@
+/* Genel stil */
+body {
+    font-family: 'Roboto', sans-serif;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Sidebar stil */
+#sidebar {
+    width: 250px;
+    min-height: 100vh;
+    position: fixed;
+    transition: width 0.3s;
+    background: #343a40;
+    overflow: hidden;
+}
+
+#sidebar.collapsed {
+    width: 60px;
+}
+
+#sidebar .sidebar-header {
+    background: #212529;
+    color: #fff;
+    text-align: center;
+}
+
+#sidebar .sidebar-header .fa-user-shield {
+    font-size: 2rem;
+}
+
+#sidebar .sidebar-header h3 {
+    margin: 0;
+    transition: opacity 0.3s, visibility 0.3s;
+}
+
+#sidebar.collapsed .sidebar-header h3 {
+    opacity: 0;
+    visibility: hidden;
+    width: 0;
+}
+
+/* Menü öğeleri */
+#sidebar .components {
+    padding: 0;
+    margin: 0;
+}
+
+#sidebar .components li {
+    border-bottom: 1px solid #495057;
+}
+
+#sidebar .components a {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    color: #adb5bd;
+    text-decoration: none;
+}
+
+#sidebar .components i {
+    font-size: 1.2rem;
+    margin-right: 10px;
+}
+
+#sidebar .components span {
+    margin-left: 20px;
+    transition: opacity 0.3s;
+}
+
+#sidebar .components a:hover {
+    background: #495057;
+    color: #fff;
+}
+
+#sidebar .components a:hover span {
+    opacity: 1;
+}
+
+#sidebar.collapsed .components span {
+    display: none;
+}
+
+/* Menü Toggle Button */
+#menu-toggle {
+    background-color: #007bff;
+    color: white;
+    border: none;
+}
+
+/* İçerik */
+#content {
+    margin-left: 250px;
+    transition: margin-left 0.3s;
+}
+
+#content.expanded {
+    margin-left: 60px;
+}
+
+/* İçerik Bölümü */
+main.container-fluid {
+    padding: 20px;
+}

@@ -1,0 +1,24 @@
+<IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
+
+    # Sembolik linklerin takip edilmesi için
+    Options +FollowSymLinks
+
+    RewriteEngine On
+
+    # Authorization Header'ı yönetin
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Dizin olmadığı ve URL sonunda eğik çizgi varsa, eğik çizgiyi kaldırın
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
+
+    # İstenen dosya veya dizin mevcut değilse, isteği index.php'ye yönlendirin
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>
