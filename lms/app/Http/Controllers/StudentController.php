@@ -19,4 +19,15 @@ class StudentController extends Controller
 
         return view('student.index', compact('exams'));
     }
+
+    public function indexAPI()
+    {
+        // Tüm sınavları al
+        $exams = Exam::all();
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => $exams,
+        ], 200);
+    }
 }

@@ -345,4 +345,116 @@ class ExamController extends Controller
             $studentAnswer->update(['is_correct' => $isCorrect]);
         }
     }
+
+    public function showAnswerFormAPI($examId)
+    {
+        $userId = auth()->id();
+        $exam = Exam::findOrFail($examId);
+
+        $hasAnswered = StudentAnswer::where('exam_id', $examId)
+            ->where('student_id', $userId)
+            ->exists();
+
+        if ($hasAnswered) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Bu sınavı zaten çözdünüz!'
+            ], 403);
+        }
+
+        $questions = Answer::where('exam_id', $examId)->get();
+
+        return response()->json([
+            'status'    => 'success',
+            'exam'      => $exam,
+            'questions' => $questions,
+        ], 200);
+    }
+
+    public function submitStudentAnswersAPI(Request $request, $examId)
+    {
+        $studentId = $request->user()->id;
+        $answers   = $request->input('answers', []);
+
+        foreach ($answers as $questionId => $answer) {
+            $correctAnswer = Answer::where('id', $questionId)->value('answer_text');
+            $isCorrect     = (!$answer)
+                ? 2
+                : (($answer === $correctAnswer) ? 1 : 0);
+
+            StudentAnswer::updateOrCreate(
+                [
+                    'student_id' => $studentId,
+                    'exam_id'    => $examId,
+                    'answer_id'  => $questionId,
+                ],
+                [
+                    'is_correct'      => $isCorrect,
+                    'students_answer' => $answer,
+                ]
+            );
+        }
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Cevaplarınız kaydedilmiştir.',
+        ], 201);
+    }
+
+    public function reviewAPI(Request $request, $examId)
+    {
+        $exam = Exam::findOrFail($examId);
+
+        if (! $exam->review_visibility) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Bu sınavın değerlendirmeleri şu anda görünür değil.'
+            ], 403);
+        }
+
+        $studentId       = auth()->id();
+        $studentAnswers  = StudentAnswer::with('answer')
+            ->where('exam_id', $exam->id)
+            ->where('student_id', $studentId)
+            ->get();
+
+        $broadcast = $request->input('broadcast') === 'yes';
+
+        if ($broadcast) {
+            foreach ($studentAnswers as $sa) {
+                $review = ExamReview::where([
+                    ['exam_id',    $exam->id],
+                    ['student_id', $studentId],
+                    ['question_id',$sa->answer_id],
+                ])->first();
+
+                if ($review) {
+                    $others = StudentAnswer::where('exam_id', $exam->id)
+                        ->where('answer_id', $sa->answer_id)
+                        ->where('student_id', '!=', $studentId)
+                        ->get();
+
+                    foreach ($others as $other) {
+                        ExamReview::firstOrCreate(
+                            [
+                                'exam_id'     => $exam->id,
+                                'student_id'  => $other->student_id,
+                                'question_id' => $sa->answer_id,
+                            ],
+                            [
+                                'review_text'  => $review->review_text,
+                                'review_media' => $review->review_media,
+                            ]
+                        );
+                    }
+                }
+            }
+        }
+
+        return response()->json([
+            'status'         => 'success',
+            'exam'           => $exam,
+            'studentAnswers' => $studentAnswers,
+        ], 200);
+    }
 }
