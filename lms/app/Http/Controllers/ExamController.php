@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\ExamReview;
 use App\Models\StudentAnswer;
 use App\Models\Exam;
 use App\Models\Answer;
@@ -412,14 +413,19 @@ class ExamController extends Controller
             ], 403);
         }
 
-        $studentId       = auth()->id();
-        $studentAnswers  = StudentAnswer::with('answer')
+        // Sanctum ile authenticate edilmiş öğrenci
+        $student = $request->user();
+        $studentId = $student->id;
+
+        // Öğrencinin cevapları, sorularla birlikte
+        $studentAnswers = StudentAnswer::with('answer')
             ->where('exam_id', $exam->id)
             ->where('student_id', $studentId)
             ->get();
 
         $broadcast = $request->input('broadcast') === 'yes';
 
+        // Broadcast seçeneği işaretliyse diğer öğrencilere de review kopyalama
         if ($broadcast) {
             foreach ($studentAnswers as $sa) {
                 $review = ExamReview::where([
@@ -450,6 +456,19 @@ class ExamController extends Controller
                 }
             }
         }
+
+        // Her cevaba review_text ve review_media ekleyelim
+        $studentAnswers->transform(function($sa) use ($exam, $studentId) {
+            $review = ExamReview::where([
+                ['exam_id',    $exam->id],
+                ['student_id', $studentId],
+                ['question_id',$sa->answer_id],
+            ])->first();
+
+            $sa->review_text  = $review ? $review->review_text  : null;
+            $sa->review_media = $review ? $review->review_media : null;
+            return $sa;
+        });
 
         return response()->json([
             'status'         => 'success',

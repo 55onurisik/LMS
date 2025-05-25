@@ -4,11 +4,13 @@
 use App\Http\Controllers\ExamController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\StudentLoginController;
+use App\Http\Controllers\StudentRegisterController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('studentAPI')->group(function () {
     // ➤ Giriş (token üretir)
     Route::post('/login',  [StudentLoginController::class, 'loginAPI']);
+    Route::post('/register', [StudentRegisterController::class, 'storeAPI']);
 
     // ➤ Bunlar artık Sanctum token’ını kontrol edecek
     Route::middleware('auth:sanctum')->group(function () {

@@ -21,7 +21,7 @@
         <div class="sidebar-header py-4 px-3">
             <div class="d-flex align-items-center">
                 <i class="fa fa-user-shield d-md-none"></i>
-                <h3 class="mb-0 d-none d-md-block">Fizik Ötesi</h3>
+                <h3 class="mb-0 d-none d-md-block">LMS</h3>
             </div>
         </div>
         <ul class="list-unstyled components">

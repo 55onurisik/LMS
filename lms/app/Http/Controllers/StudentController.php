@@ -20,14 +20,36 @@ class StudentController extends Controller
         return view('student.index', compact('exams'));
     }
 
-    public function indexAPI()
+    public function indexAPI(Request $request)
     {
-        // Tüm sınavları al
+        // Sanctum’la authenticated user’ı al
+        $student = $request->user();
+        // ya: $student = auth('api')->user();
+
+        if (! $student) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Unauthenticated',
+            ], 401);
+        }
+
+        $studentData = [
+            'name'          => $student->name,
+            'email'         => $student->email,
+            'phone'         => $student->phone,
+            'class_level'   => $student->class_level,
+            'schedule_day'  => $student->schedule_day,
+            'schedule_time' => $student->schedule_time,
+        ];
+
         $exams = Exam::all();
 
         return response()->json([
             'status' => 'success',
-            'data'   => $exams,
+            'data'   => [
+                'student' => $studentData,
+                'exams'   => $exams,
+            ],
         ], 200);
     }
 }

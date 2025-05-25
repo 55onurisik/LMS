@@ -16,23 +16,35 @@ class StudentLoginController extends Controller
 
     public function login(Request $request)
     {
-        $credentials = $request->only('email', 'password');
+        // 1) İstek verilerini doğrula
+        $data = $request->validate([
+            'email'    => 'required|email',
+            'password' => 'required|string',
+        ]);
 
-        if (Auth::guard('student')->attempt($credentials)) {
-            $student = Auth::guard('student')->user();
+        // 2) Öğrenciyi email ile bul
+        $student = Student::where('email', $data['email'])->first();
 
-            // Öğrencinin statüsünü kontrol ediyoruz. Onaylı değilse çıkış yap ve hata mesajı göster.
-            if ($student->status !== 'approved') {
-                Auth::guard('student')->logout();
-                return back()->withErrors(['email' => 'Hesabınız henüz onaylanmamış.']);
-            }
-
-            return redirect()->intended('/student/dashboard');
+        // 3) Yoksa veya şifre yanlışsa hata döndür
+        if (! $student || ! Hash::check($data['password'], $student->password)) {
+            return back()->withErrors([
+                'email' => 'Geçersiz kimlik bilgileri.'
+            ]);
         }
 
-        return back()->withErrors(['email' => 'The provided credentials do not match our records.']);
-    }
+        // 4) Hesap onayını kontrol et
+        if ($student->status !== 'approved') {
+            return back()->withErrors([
+                'email' => 'Hesabınız henüz onaylanmamış.'
+            ]);
+        }
 
+        // 5) Session-based login: Auth::guard('student') session driver kullanıyor
+        Auth::guard('student')->login($student);
+
+        // 6) Yönlendir
+        return redirect()->intended('/student/dashboard');
+    }
 
     public function logout(Request $request)
     {
@@ -97,13 +109,15 @@ class StudentLoginController extends Controller
     // POST /api/studentAPI/logout
     public function logoutAPI(Request $request)
     {
-        // Eğer Sanctum token kullanıyorsan:
-        $request->user('student')->currentAccessToken()->delete();
+        // Geçerli Sanctum token’ı al
+        $token = $request->user('student')->currentAccessToken();
 
-        Auth::guard('student')->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        // Varsa sil
+        if ($token) {
+            $token->delete();
+        }
 
+        // JSON ile başarılı çıkış yanıtı
         return response()->json([
             'status'  => 'success',
             'message' => 'Çıkış yapıldı.'
