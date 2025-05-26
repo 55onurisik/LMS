@@ -12,6 +12,8 @@ use App\Http\Controllers\TopicController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\StudentRegisterController;
 use App\Http\Controllers\AdminStudentController;
+use App\Http\Controllers\AIAnalysisController;
+use App\Http\Controllers\ChatController;
 use Illuminate\Support\Facades\Route;
 
 // Admin Login Routes
@@ -103,6 +105,16 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth:admin']], function () 
 
     Route::get('/unit-topic/units/{class_level}', [UnitController::class, 'getUnits'])
         ->name('unit-topic.units');
+
+    Route::get('/admin/ai-analysis', [AIAnalysisController::class, 'index'])->name('admin.ai-analysis');
+
+    Route::get('/admin/chat', [ChatController::class, 'chatList'])->name('admin.chat.index');
+
+    // Seçilen öğrenci ile mesaj ekranı
+    Route::get('/chat/{userId}', [ChatController::class, 'chatWithUser'])->name('admin.chat.with');
+
+    // Mesaj gönderme
+    Route::post('/chat/send', [ChatController::class, 'send'])->name('admin.chat.send');
 });
 
 // Student Routes (auth:student middleware)
@@ -116,3 +128,5 @@ Route::group(['prefix' => 'student', 'middleware' => ['auth:student']], function
 // API Routes
 Route::get('/api/topics', [TopicController::class, 'index']);
 Route::get('/api/units', [UnitController::class, 'index']);
+
+

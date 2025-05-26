@@ -11,15 +11,21 @@ class StudentAnswer extends Model
 
     protected $fillable = [
         'student_id',
-        'exam_id',
-        'answer_id',
+        'question_id',
+        'answer',
         'is_correct',
-        'students_answer'
+        'created_at',
+        'updated_at'
     ];
 
     public function student()
     {
         return $this->belongsTo(Student::class);
+    }
+
+    public function question()
+    {
+        return $this->belongsTo(Question::class);
     }
 
     public function exam()

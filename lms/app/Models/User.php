@@ -48,4 +48,14 @@ class User extends Authenticatable
     {
         return $this->admin; // Or your own logic to check if user is an admin
     }
+    public function sentMessages()
+    {
+        return $this->morphMany(Message::class, 'sender');
+    }
+
+    public function receivedMessages()
+    {
+        return $this->morphMany(Message::class, 'receiver');
+    }
+
 }
