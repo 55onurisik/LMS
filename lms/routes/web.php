@@ -115,6 +115,10 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth:admin']], function () 
 
     // Mesaj gönderme
     Route::post('/chat/send', [ChatController::class, 'send'])->name('admin.chat.send');
+
+    Route::get('/admin/chat/messages/{userId}', [ChatController::class, 'getMessages'])
+        ->name('admin.chat.messages');
+
 });
 
 // Student Routes (auth:student middleware)

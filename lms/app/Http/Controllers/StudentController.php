@@ -2,54 +2,101 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Answer;
-use App\Models\Exam;
-use App\Models\StudentAnswer;
-use App\Models\Topic;
 use Illuminate\Http\Request;
-use App\Models\Student; // Student modelini kullanarak işlemler yapacağız
-use Illuminate\Support\Facades\DB;
+use App\Models\StudentAnswer;
+use App\Models\Exam;
+use Illuminate\Support\Facades\Http;
 
-class StudentController extends Controller
+class AnalysisController extends Controller
 {
-    public function index()
+    /**
+     * List all exams available to the user (for dropdown or selection).
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function examsAPI()
     {
-        // Tüm sınavları al
-        $exams = Exam::all();
+        $exams = Exam::all(['id', 'name', 'description', 'created_at']);
 
-        return view('student.index', compact('exams'));
+        return response()->json([
+            'success' => true,
+            'exams' => $exams,
+        ]);
     }
 
-    public function indexAPI(Request $request)
+    /**
+     * Return detailed student statistics and analysis for all exams.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function statisticsAPI(Request $request)
     {
-        // Sanctum’la authenticated user’ı al
-        $student = $request->user();
-        // ya: $student = auth('api')->user();
-
-        if (! $student) {
+        $user = $request->user();
+        if (! $user) {
             return response()->json([
-                'status'  => 'error',
-                'message' => 'Unauthenticated',
+                'success' => false,
+                'message' => 'Unauthenticated.'
             ], 401);
         }
 
-        $studentData = [
-            'name'          => $student->name,
-            'email'         => $student->email,
-            'phone'         => $student->phone,
-            'class_level'   => $student->class_level,
-            'schedule_day'  => $student->schedule_day,
-            'schedule_time' => $student->schedule_time,
-        ];
+        // Fetch all answers by this student, eager load relations
+        $answers = StudentAnswer::with(['answer.topic', 'exam'])
+            ->where('student_id', $user->id)
+            ->orderBy('created_at')
+            ->get();
 
-        $exams = Exam::all();
+        // Group data by exam -> topic
+        $statistics = [];
+
+        foreach ($answers as $a) {
+            $examId = $a->exam->id;
+            $examName = $a->exam->name;
+            $topicName = $a->answer->topic->topic_name ?? 'Bilinmeyen';
+
+            // Initialize structures
+            if (! isset($statistics[$examId])) {
+                $statistics[$examId] = [
+                    'exam_id'   => $examId,
+                    'exam_name' => $examName,
+                    'topics'    => []
+                ];
+            }
+            if (! isset($statistics[$examId]['topics'][$topicName])) {
+                $statistics[$examId]['topics'][$topicName] = [
+                    'correct'   => 0,
+                    'incorrect' => 0,
+                    'history'   => []
+                ];
+            }
+
+            // Count correct/incorrect
+            if ($a->is_correct) {
+                $statistics[$examId]['topics'][$topicName]['correct']++;
+            } else {
+                $statistics[$examId]['topics'][$topicName]['incorrect']++;
+            }
+
+            // Add timestamped history record
+            $statistics[$examId]['topics'][$topicName]['history'][] = [
+                'question_id' => $a->question_id,
+                'correct'     => (bool) $a->is_correct,
+                'answered_at' => $a->created_at->toDateTimeString(),
+            ];
+        }
+
+        // Re-index topics as array
+        $result = array_map(function ($exam) {
+            $exam['topics'] = array_map(function ($stats, $topicName) {
+                return array_merge(['topic_name' => $topicName], $stats);
+            }, $exam['topics'], array_keys($exam['topics']));
+
+            return $exam;
+        }, $statistics);
 
         return response()->json([
-            'status' => 'success',
-            'data'   => [
-                'student' => $studentData,
-                'exams'   => $exams,
-            ],
-        ], 200);
+            'success'    => true,
+            'statistics' => array_values($result),
+        ]);
     }
 }

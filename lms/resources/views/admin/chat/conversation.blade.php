@@ -6,25 +6,12 @@
 @section('content')
     <div class="container-fluid">
         <div class="card mb-3">
-            <div class="card-body" style="height: 400px; overflow-y: auto;">
-                @foreach($messages as $msg)
-                    @php
-                        $isAdmin = $msg->sender_type === \App\Models\User::class && $msg->sender_id === auth()->id();
-                    @endphp
-                    <div class="{{ $isAdmin ? 'text-end' : 'text-start' }}">
-                        <strong>{{ $isAdmin ? 'Siz' : $student->name }}:</strong>
-                        <div class="p-2 d-inline-block {{ $isAdmin ? 'bg-primary text-white' : 'bg-light' }}" style="border-radius: 10px; max-width: 70%;">
-                            {{ $msg->message }}
-                        </div>
-                        <br>
-                        <small class="text-muted">{{ $msg->created_at->format('d.m.Y H:i') }}</small>
-                    </div>
-                    <hr>
-                @endforeach
+            <div class="card-body" id="chat-messages" style="height: 400px; overflow-y: auto;">
+                @include('admin.chat.partials.messages', ['messages' => $messages, 'student' => $student])
             </div>
         </div>
 
-        <form action="{{ route('admin.chat.send') }}" method="POST">
+        <form id="chatForm" action="{{ route('admin.chat.send') }}" method="POST">
             @csrf
             <input type="hidden" name="receiver_id" value="{{ $student->id }}">
             <div class="input-group">
@@ -35,4 +22,39 @@
             </div>
         </form>
     </div>
+@endsection
+
+@section('scripts')
+    <script>
+        // Scroll en alta
+        function scrollToBottom() {
+            const container = document.getElementById('chat-messages');
+            if (container) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        // Ajax ile mesajları çek
+        function fetchMessages() {
+            $.ajax({
+                url: "{{ route('admin.chat.messages', $student->id) }}",
+                type: "GET",
+                success: function(data) {
+                    $('#chat-messages').html(data);
+                    scrollToBottom();
+                },
+                error: function() {
+                    console.warn("Mesajlar alınamadı.");
+                }
+            });
+        }
+
+        // Sayfa ilk yüklendiğinde scroll en alta
+        document.addEventListener('DOMContentLoaded', function () {
+            scrollToBottom();
+        });
+
+        // 5 saniyede bir mesajları çek
+        setInterval(fetchMessages, 1000);
+    </script>
 @endsection

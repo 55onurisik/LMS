@@ -168,4 +168,24 @@ class ChatController extends Controller
         ]);
     }
 
+    public function getMessages($userId)
+    {
+        $student = Student::findOrFail($userId);
+        $admin = auth()->user();
+
+        $messages = Message::where(function ($q) use ($student, $admin) {
+            $q->where('sender_id', $admin->id)
+                ->where('sender_type', User::class)
+                ->where('receiver_id', $student->id)
+                ->where('receiver_type', Student::class);
+        })->orWhere(function ($q) use ($student, $admin) {
+            $q->where('sender_id', $student->id)
+                ->where('sender_type', Student::class)
+                ->where('receiver_id', $admin->id)
+                ->where('receiver_type', User::class);
+        })->orderBy('created_at')->get();
+
+        return view('admin.chat.partials.messages', compact('messages', 'student'));
+    }
+
 }
