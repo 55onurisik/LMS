@@ -35,7 +35,7 @@ class AIAnalysisController extends Controller
     {
         try {
             Log::info('Starting analysis for student: ' . $student->id);
-            
+
             if (!$student) {
                 Log::error('Student not found');
                 return response()->json([
@@ -45,9 +45,9 @@ class AIAnalysisController extends Controller
             }
 
             Log::info('Student found: ' . $student->name);
-            
+
             $analysis = $this->analyzer->analyze($student);
-            
+
             if (!$analysis) {
                 Log::error('Analysis failed for student: ' . $student->id);
                 return response()->json([
@@ -62,7 +62,7 @@ class AIAnalysisController extends Controller
             ]);
 
             Log::info('Analysis completed successfully for student: ' . $student->id);
-            
+
             return response()->json([
                 'success' => true,
                 'analysis' => $this->formatAnalysisToHtml($analysis)
@@ -70,7 +70,7 @@ class AIAnalysisController extends Controller
         } catch (\Exception $e) {
             Log::error('Error in analyze: ' . $e->getMessage());
             Log::error('Stack trace: ' . $e->getTraceAsString());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Beklenmeyen bir hata oluştu: ' . $e->getMessage()
@@ -82,86 +82,84 @@ class AIAnalysisController extends Controller
     {
         try {
             Log::info('Starting chat for student: ' . $student->id);
-            
-            if (!$student) {
-                Log::error('Student not found');
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Öğrenci bulunamadı'
-                ], 404);
-            }
 
+            // Gelen mesajı al ve logla
             $message = $request->input('message');
             Log::info('Chat message received: ' . $message);
 
-            // Öğrencinin cevaplarını ve ilişkili verileri yükle
+            // Öğrencinin cevaplarını konu bazında yükle
             $studentAnswers = $student->answers()
-                ->with(['answer.topic'])
+                ->with('answer.topic')
                 ->get()
-                ->groupBy('answer.topic.topic_name');
+                ->groupBy(function($ans) {
+                    return $ans->answer->topic->topic_name ?? 'Bilinmeyen';
+                });
 
-            // Tüm öğrencilerin ortalama başarı oranlarını hesapla
-            $allStudents = Student::with(['answers' => function($query) {
-                $query->with(['answer.topic']);
-            }])->get();
-
-            $topicAverages = [];
+            // Tüm öğrencilerin verilerini al ve sınıf ortalamasını hesapla
+            $allStudents = Student::with('answers.answer.topic')->get();
+            $classStats = [];
             foreach ($allStudents as $s) {
-                foreach ($s->answers as $answer) {
-                    $topicName = $answer->answer->topic->topic_name ?? 'Bilinmeyen';
-                    if (!isset($topicAverages[$topicName])) {
-                        $topicAverages[$topicName] = ['total' => 0, 'correct' => 0];
+                foreach ($s->answers as $ans) {
+                    $topicName = $ans->answer->topic->topic_name ?? 'Bilinmeyen';
+                    if (!isset($classStats[$topicName])) {
+                        $classStats[$topicName] = ['correct' => 0, 'answered' => 0];
                     }
-                    $topicAverages[$topicName]['total']++;
-                    if ($answer->is_correct) {
-                        $topicAverages[$topicName]['correct']++;
+                    // Sadece doğru (1) ve yanlış (0) yanıtları say
+                    if ($ans->is_correct !== 2) {
+                        $classStats[$topicName]['answered']++;
+                        if ($ans->is_correct === 1) {
+                            $classStats[$topicName]['correct']++;
+                        }
                     }
                 }
             }
+            $classAverages = [];
+            foreach ($classStats as $topicName => $stats) {
+                $classAverages[$topicName] = $stats['answered'] > 0
+                    ? round(($stats['correct'] / $stats['answered']) * 100, 2)
+                    : 0;
+            }
 
-            // Chat için prompt hazırla
-            $prompt = "Sen bir eğitim asistanısın ve şu anda bir öğretmenle konuşuyorsun. Aşağıdaki öğrenci verilerini kullanarak öğretmenin sorduğu soruyu yanıtla. Öğrencinin performansını diğer öğrencilerle karşılaştırarak değerlendir ve öğretmene rehberlik et.\n\n";
-            $prompt .= "Öğrenci: " . $student->name . "\n\n";
-            
+            // Prompt oluştur
+            $prompt = "Sen bir eğitim asistanısın ve şu anda bir öğretmenle konuşuyorsun. " .
+                "Aşağıda, öğrencinin konu bazında performans verileri (doğru, yanlış, boş sayıları ve başarı oranı) " .
+                "ile sınıf ortalamaları (% olarak) listelenmiştir. Öğretmenin sorusunu bu verilere dayanarak " .
+                "kısa ve öz bir şekilde cevapla ve öğretmene rehberlik et.\n\n";
+            $prompt .= "Öğrenci: {$student->name}\n\n";
+
             foreach ($studentAnswers as $topicName => $answers) {
-                $totalQuestions = $answers->count();
-                $correctAnswers = $answers->where('is_correct', true)->count();
-                $successRate = $totalQuestions > 0 ? round(($correctAnswers / $totalQuestions) * 100, 2) : 0;
-                
-                // Konu için ortalama başarı oranını hesapla
-                $topicAvg = isset($topicAverages[$topicName]) ? 
-                    round(($topicAverages[$topicName]['correct'] / $topicAverages[$topicName]['total']) * 100, 2) : 0;
-                
+                $total    = $answers->count();
+                $correct  = $answers->where('is_correct', 1)->count();
+                $wrong    = $answers->where('is_correct', 0)->count();
+                $blank    = $answers->where('is_correct', 2)->count();
+                $answered = $total - $blank;
+                $successRate = $answered > 0
+                    ? round(($correct / $answered) * 100, 2)
+                    : 0;
+                $classAvg = $classAverages[$topicName] ?? 0;
+
                 $prompt .= "Konu: {$topicName}\n";
-                $prompt .= "Öğrencinin Başarı Oranı: %{$successRate}\n";
-                $prompt .= "Sınıf Ortalaması: %{$topicAvg}\n";
-                $prompt .= "Toplam Soru: {$totalQuestions}\n";
-                $prompt .= "Doğru Cevap: {$correctAnswers}\n";
-                
-                // Başarı durumuna göre not ekle
-                if ($successRate > $topicAvg + 10) {
-                    $prompt .= "Not: Bu konuda sınıf ortalamasının üzerinde performans gösteriyor.\n";
-                } elseif ($successRate < $topicAvg - 10) {
-                    $prompt .= "Not: Bu konuda sınıf ortalamasının altında performans gösteriyor.\n";
-                } else {
-                    $prompt .= "Not: Bu konuda sınıf ortalamasına yakın performans gösteriyor.\n";
-                }
-                $prompt .= "\n";
+                $prompt .= "Toplam Soru: {$total}\n";
+                $prompt .= "Doğru Cevap: {$correct}\n";
+                $prompt .= "Yanlış Cevap: {$wrong}\n";
+                $prompt .= "Boş: {$blank}\n";
+                $prompt .= "Öğrenci Başarı Oranı: %{$successRate}\n";
+                $prompt .= "Sınıf Ortalaması: %{$classAvg}\n\n";
             }
-            
-            $prompt .= "\nÖğretmenin Sorusu: " . $message . "\n\n";
-            $prompt .= "Lütfen yanıtını Türkçe olarak ver. Öğrencinin performansını diğer öğrencilerle karşılaştırarak değerlendir ve öğretmene rehberlik et. Yanıtın kısa ve öz olsun.";
 
-            Log::info('Sending chat prompt to Gemini API:', ['prompt' => $prompt]);
+            $prompt .= "Öğretmenin Sorusu: {$message}\n\n";
+            $prompt .= "Lütfen yanıtını Türkçe olarak, kısa ve öz olacak şekilde ver.";
 
-            // Gemini API'yi çağır
+            Log::info('Prompt prepared: ' . $prompt);
+
+            // Gemini API çağrısı
             $response = $this->analyzer->getGeminiService()->analyzeStudentPerformance($prompt);
 
-            if (!$response) {
+            if (! $response) {
                 throw new \Exception('API yanıt vermedi');
             }
 
-            Log::info('Received response from Gemini API:', ['response' => $response]);
+            Log::info('Received response', ['response' => $response]);
 
             return response()->json([
                 'success' => true,
@@ -170,17 +168,17 @@ class AIAnalysisController extends Controller
         } catch (\Exception $e) {
             Log::error('Chat error: ' . $e->getMessage());
             Log::error('Stack trace: ' . $e->getTraceAsString());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Sohbet sırasında bir hata oluştu: ' . $e->getMessage()
             ], 500);
         }
     }
-
     private function formatAnalysisToHtml($analysis)
     {
         $html = '<div class="analysis-content">';
-        
+
         // Genel Başarı Oranı
         $html .= '<div class="card mb-4">';
         $html .= '<div class="card-header bg-primary text-white">';
@@ -195,10 +193,10 @@ class AIAnalysisController extends Controller
         // Konu Bazlı Analizler
         $html .= '<div class="card mb-4">';
         $html .= '<div class="card-header bg-info text-white">';
-        $html .= '<h5 class="mb-0">Konu Bazlı Analizler</h5>';
+        $html .= '<h5 class="mb-0">Analizler</h5>';
         $html .= '</div>';
         $html .= '<div class="card-body">';
-        
+
         foreach ($analysis['topics'] as $topic) {
             $html .= '<div class="topic-analysis mb-3">';
             $html .= '<h6>' . $topic['topic_name'] . '</h6>';
@@ -208,7 +206,7 @@ class AIAnalysisController extends Controller
             $html .= 'aria-valuenow="' . $topic['success_rate'] . '" aria-valuemin="0" aria-valuemax="100">';
             $html .= $topic['success_rate'] . '%</div></div>';
             $html .= '<p>Toplam Soru: ' . $topic['total_questions'] . ' | Doğru: ' . $topic['correct_answers'] . '</p>';
-            
+
             if (!empty($topic['recommendations'])) {
                 $html .= '<div class="recommendations mt-2">';
                 $html .= '<strong>Öneriler:</strong><ul>';
@@ -217,10 +215,10 @@ class AIAnalysisController extends Controller
                 }
                 $html .= '</ul></div>';
             }
-            
+
             $html .= '</div>';
         }
-        
+
         $html .= '</div></div>';
 
         // Yapay Zeka Analizi
@@ -235,7 +233,8 @@ class AIAnalysisController extends Controller
         }
 
         $html .= '</div>';
-        
+
         return $html;
     }
-} 
+
+}

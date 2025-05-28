@@ -106,6 +106,13 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth:admin']], function () 
     Route::get('/unit-topic/units/{class_level}', [UnitController::class, 'getUnits'])
         ->name('unit-topic.units');
 
+
+    Route::post(
+        'admin/exams/{exam}/students/{student}/ai-analysis',
+        [AIAnalysisController::class, 'aiAnalysis']
+    )->name('admin.exams.aiAnalysis');
+
+
     Route::get('/admin/ai-analysis', [AIAnalysisController::class, 'index'])->name('admin.ai-analysis');
 
     Route::get('/admin/chat', [ChatController::class, 'chatList'])->name('admin.chat.index');

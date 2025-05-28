@@ -1,6 +1,7 @@
 <?php
 // routes/api.php
 
+use App\Http\Controllers\AnalysisController;
 use App\Http\Controllers\Api\ChatApiController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ExamController;
@@ -29,10 +30,10 @@ Route::prefix('studentAPI')->group(function () {
         Route::get('/chat',                   [ChatController::class,         'studentIndex']);
 
         // ➤ Yeni: Öğrencinin sınav listesini çekmek için
-        Route::get('/exams',                  [AIAnalysisController::class,   'examsAPI']);
+        Route::get('/exams',                  [AnalysisController::class,   'examsAPI']);
 
         // ➤ Yeni: Öğrencinin tüm sınav istatistiklerini çekmek için
-        Route::get('/statistics',            [AIAnalysisController::class,   'statisticsAPI']);
+        Route::get('/statistics',            [AnalysisController::class,   'statisticsAPI']);
     });
 });
 
